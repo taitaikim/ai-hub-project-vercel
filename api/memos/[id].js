@@ -1,12 +1,7 @@
-// [A.I.K.H. 2.0] Vercel 서버리스 함수 (Final Fix 2)
+// [A.I.K.H. 2.0] Vercel 서버리스 함수 (Final Fix 4)
 // 경로: /api/memos/[id].js
-// (버그: 'import' 경로를 '../../'로 수정)
+// (버그: 'import' 경로를 '../lib/ai-hub.js'로 수정)
 
-// --- 1. '중앙 통제실'에서 '부품' 가져오기 ---
-// 
-// [수정!] '../../../_lib/ai-hub.js' (X) 
-// [수정!] '../../_lib/ai-hub.js' (O)
-//
 import {
     db,
     auth,
@@ -14,7 +9,7 @@ import {
     getAiSummary,
     updateNotionPage,
     deleteNotionPage
-} from '../../_lib/ai-hub.js';
+} from '../lib/ai-hub.js'; // ⬅️ [최종 수정!] (api/memos/ -> api/ -> lib/)
 
 // --- (이하 코드는 100% 동일) ---
 export default async function handler(req, res) {
@@ -31,7 +26,7 @@ export default async function handler(req, res) {
             const newText = req.body.text;
             const docRef = db.collection('memos').doc(memoId);
             const doc = await docRef.get();
-            if (!doc.exists) { return res.status(404).send('문서를 찾을 수 없습니다.'); }
+            if (!doc.exists) { return res.status(440).send('문서를 찾을 수 없습니다.'); }
             if (doc.data().uid !== uid) { return res.status(403).send('수정 권한이 없습니다.'); }
             let newSummary = '';
             try { newSummary = await getAiSummary(newText); } 
