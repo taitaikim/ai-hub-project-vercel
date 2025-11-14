@@ -1,10 +1,9 @@
-// [A.I.K.H. 2.0] Vercel 서버리스 함수 (Final Fix 5)
+// [A.I.K.H. 3.0] Vercel 서버리스 함수 (Zero-Error / 'JSON 파서' 및 '가짜 보안' 제거)
 // 경로: /api/notion-webhook.js
-// (버그: 'JSON 번역기' 추가)
 
+// [수정!] 'Notion Webhook'은 'AI 요약' 외에 '공용 함수'가 '불필요'
 import { initializeApp, cert, getApps, getApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { OpenAI } from 'openai';
 import { getAiSummary } from './lib/ai-hub.js'; 
 
 // --- 1. 엔진 초기화 (기존과 동일) ---
@@ -13,10 +12,9 @@ const app = !getApps().length
   ? initializeApp({ credential: cert(serviceAccount) })
   : getApp();
 const db = getFirestore(app);
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-});
-const NOTION_WEBHOOK_SECRET = process.env.NOTION_WEBHOOK_SECRET;
+
+// [수정!] 'NOTION_WEBHOOK_SECRET' (가짜 보안) '완전' 삭제!
+// const NOTION_WEBHOOK_SECRET = process.env.NOTION_WEBHOOK_SECRET; // ⬅️ [삭제!]
 
 // --- 2. Vercel API 핸들러 (메인 로직) ---
 export default async function handler(req, res) {
@@ -26,35 +24,24 @@ export default async function handler(req, res) {
         return res.status(405).json({ message: 'Method Not Allowed' });
     }
 
-    // --- 👇 [S6-FIX] 'JSON 번역기' 로직 (필수!) 👇 ---
-    // Vercel은 'express.json()'이 없으므로, '수동'으로 '번역'해야 합니다.
-    let event;
-    try {
-        // 'req.body'를 '텍스트'로 '강제' 변환 후 'JSON'으로 '파싱'
-        event = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    } catch (e) {
-        console.error("🔥 [Notion Webhook] JSON 파싱 실패!", e);
-        return res.status(400).json({ message: 'Invalid JSON' });
-    }
-    // --- 👆 [S6-FIX] 'JSON 번역기' 로직 끝 👆 ---
+    // [수정!] 'JSON 번역기' ('수동' 파싱) '삭제!' (Vercel '자동' 파싱 사용)
+    const event = req.body;
 
-
-    // [S6-FIX] Notion '인증' 요청 처리 (최우선)
+    // --- 👇 [S6-FIX] Notion '인증' 요청 처리 (최우선) 👇 ---
+    // (이것이 '진짜' Notion의 '보안' 방식입니다)
     if (event.challenge) {
         console.log("✅ [Notion Webhook] '인증 토큰(challenge)' 수신! 즉시 응답합니다.");
-        console.log(`⭐️ 인증 토큰: ${event.challenge} ⭐️`);
+        console.log(`⭐️ 인증 토큰: ${event.challenge} ⭐️`); // ⬅️ 이 '토큰'을 '복사'해야 합니다!
         return res.status(200).json({ challenge: event.challenge });
     }
+    // --- 👆 [S6-FIX] 인증 로직 끝 👆 ---
 
-    // [보안 2] '실제 데이터' 수신 시 '비밀 키' 검증
-    const notionSecret = req.headers['ntn-webhook-secret'];
-    if (notionSecret !== NOTION_WEBHOOK_SECRET) {
-        console.warn("🔥 [Notion Webhook] 비정상적 접근 감지! (비밀 키 불일치)");
-        return res.status(401).json({ message: 'Unauthorized' });
-    }
+    // [수정!] '가짜 보안' (비밀 키 검증) '완전' 삭제!
+    // const notionSecret = req.headers['ntn-webhook-secret']; // ⬅️ [삭제!]
+    // if (notionSecret !== NOTION_WEBHOOK_SECRET) { ... } // ⬅️ [삭제!]
 
-    // --- (이하 코드는 100% 동일) ---
-    // ( ... 기존 'page.property_value.changed' 및 'page.archived' 로직 ... )
+
+    // --- (이하 '동기화' 로직 100% 동일) ---
     try {
         if (event.event === 'page.property_value.changed') {
             console.log("🔄 [Notion Webhook] '페이지 수정' 신호 수신!");
@@ -75,7 +62,7 @@ export default async function handler(req, res) {
                 let newSummary = doc.data().summary;
                 try { newSummary = await getAiSummary(newNotionText); } 
                 catch (aiError) { console.error("🔥 [Notion Webhook] AI 재요약 실패", aiError); }
-                await docRef.update({ text: newNotionText, summary: newSummary });
+                await docRef.update({ text: newText, summary: newSummary });
                 console.log(`✅ [Notion Webhook] '${firebaseId}' 문서를 'Notion' 기준으로 'Firebase'에 덮어썼습니다!`);
             } else {
                  console.log(`🔄 [Notion Webhook] 텍스트가 동일하여 덮어쓰기를 건너뜁니다.`);

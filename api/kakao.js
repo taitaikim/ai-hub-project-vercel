@@ -1,46 +1,25 @@
-// [A.I.K.H. 2.0] Vercel 서버리스 함수 (Final Fix 6 - 'JSON 파서' 최종 통합본)
+// [A.I.K.H. 3.0] Vercel 서버리스 함수 (Zero-Error / 'JSON 파서' 제거)
 // 경로: /api/kakao.js
 
-// --- 1. '통제실'에서 '부품' 가져오기 ---
-import {
-    db,
-    auth,
-    openai,
-    notion,
-    NOTION_DATABASE_ID,
-    getAiSummary,
-    saveToNotion
-} from './lib/ai-hub.js'; // (O) './lib/' (api/lib/...)
+import { db, auth, getAiSummary, saveToNotion } from './lib/ai-hub.js';
 
-// --- 2. Vercel API 핸들러 (메인 로직) ---
 export default async function handler(req, res) {
-    
-    // [보안 1] POST 요청만 허용
     if (req.method !== 'POST') {
         return res.status(405).json({ message: 'Method Not Allowed' });
     }
-
-    // --- 👇 [S6-FIX] 'JSON 번역기' 로직 (필수!) 👇 ---
-    let requestBody;
-    try {
-        // Vercel은 'req.body'가 '텍스트'일 수 있으므로 '수동' 파싱
-        requestBody = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    } catch (e) {
-        console.error("🔥 [Kakao] JSON 파싱 실패!", e);
-        return res.status(400).json({ message: 'Invalid JSON' });
-    }
-    // --- 👆 [S6-FIX] 'JSON 번역기' 로직 끝 👆 ---
+    
+    // [수정!] 'JSON 번역기' ('수동' 파싱) '삭제!' (Vercel '자동' 파싱 사용)
+    const requestBody = req.body; 
 
     console.log('💬 [카카오] Vercel 워크플로우 시작!');
     let responseMessage = ""; 
     
     try {
-        // [수정!] 'req.body'가 아닌 'requestBody' 사용
         const userMessage = requestBody.userRequest.utterance;
         const kakaoChatId = requestBody.userRequest.user.id; 
 
-        // [명령어 분석 1] '/연결' 명령인가?
         if (userMessage.startsWith('/연결 ')) {
+            // ... (기존 '/연결' 로직 100% 동일) ...
             const code = userMessage.split(' ')[1]; 
             console.log(`💬 [카카오] 계정 연결 시도... (코드: ${code})`);
             const codeRef = db.collection('linkCodes').doc(code);
@@ -59,8 +38,8 @@ export default async function handler(req, res) {
             console.log(`✅ [계정 연결] '${kakaoChatId}' <-> '${firebaseUid}' 영구 연결 성공!`);
             responseMessage = "✅ 계정 연결 성공! 이제부터 보내는 메모는 사장님의 Notion에 자동 저장됩니다.";
         } 
-        // [명령어 분석 2] '일반 메모'인가?
         else {
+            // ... (기존 '일반 메모' 로직 100% 동일) ...
             console.log(`💬 [카카오] 일반 메모 저장 시도... (카톡ID: ${kakaoChatId})`);
             const mappingRef = db.collection('userMappingsByKakaoId').doc(kakaoChatId);
             const mappingDoc = await mappingRef.get();
