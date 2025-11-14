@@ -1,13 +1,8 @@
-// [A.I.K.H. 2.0] Vercel 서버리스 함수 (Final Fix 2)
+// [A.I.K.H. 2.0] Vercel 서버리스 함수 (Final Fix 3)
 // 경로: /api/generate-link-code.js
-// (버그: 'import' 경로를 '../'로 수정)
+// (버그: 'import' 경로를 '../lib/ai-hub.js'로 수정)
 
-// --- 1. '중앙 통제실'에서 '부품' 가져오기 ---
-// 
-// [수정!] '../../_lib/ai-hub.js' (X) 
-// [수정!] '../_lib/ai-hub.js' (O)
-//
-import { db, verifyToken } from '../_lib/ai-hub.js';
+import { db, verifyToken } from '../lib/ai-hub.js';
 
 // --- (이하 코드는 100% 동일) ---
 export default async function handler(req, res) {
