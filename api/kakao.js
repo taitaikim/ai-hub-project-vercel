@@ -1,16 +1,15 @@
-// [A.I.K.H. 3.0] Vercel 서버리스 함수 (Zero-Error / 'JSON 파서' 제거)
+// [A.I.K.H. 3.0] Vercel 서버리스 함수 (LWW 적용)
 // 경로: /api/kakao.js
 
-import { db, auth, getAiSummary, saveToNotion } from './lib/ai-hub.js';
+import { db, auth, openai, notion, NOTION_DATABASE_ID, getAiSummary, saveToNotion } from './lib/ai-hub.js';
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ message: 'Method Not Allowed' });
     }
     
-    // [수정!] 'JSON 번역기' ('수동' 파싱) '삭제!' (Vercel '자동' 파싱 사용)
+    // Vercel은 표준 POST 요청을 자동으로 파싱합니다.
     const requestBody = req.body; 
-
     console.log('💬 [카카오] Vercel 워크플로우 시작!');
     let responseMessage = ""; 
     
@@ -18,10 +17,10 @@ export default async function handler(req, res) {
         const userMessage = requestBody.userRequest.utterance;
         const kakaoChatId = requestBody.userRequest.user.id; 
 
+        // [명령어 분석 1] '/연결' 명령인가?
         if (userMessage.startsWith('/연결 ')) {
-            // ... (기존 '/연결' 로직 100% 동일) ...
+            // ... (기존 '/연결' 로직 생략) ...
             const code = userMessage.split(' ')[1]; 
-            console.log(`💬 [카카오] 계정 연결 시도... (코드: ${code})`);
             const codeRef = db.collection('linkCodes').doc(code);
             const codeDoc = await codeRef.get();
             if (!codeDoc.exists) { throw new Error('코드가 존재하지 않습니다.'); }
@@ -38,28 +37,32 @@ export default async function handler(req, res) {
             console.log(`✅ [계정 연결] '${kakaoChatId}' <-> '${firebaseUid}' 영구 연결 성공!`);
             responseMessage = "✅ 계정 연결 성공! 이제부터 보내는 메모는 사장님의 Notion에 자동 저장됩니다.";
         } 
+        // [명령어 분석 2] '일반 메모'인가?
         else {
-            // ... (기존 '일반 메모' 로직 100% 동일) ...
-            console.log(`💬 [카카오] 일반 메모 저장 시도... (카톡ID: ${kakaoChatId})`);
+            // ... (기존 '일반 메모' 로직) ...
             const mappingRef = db.collection('userMappingsByKakaoId').doc(kakaoChatId);
             const mappingDoc = await mappingRef.get();
             if (!mappingDoc.exists) { throw new Error('auth/user-not-found'); }
             const firebaseUid = mappingDoc.data().firebaseUid;
-            console.log(`✅ [계정 확인] '${kakaoChatId}' -> '${firebaseUid}' (기존 사용자)`);
             const aiSummary = await getAiSummary(userMessage);
             const savedDate = new Date();
+            
+            // [STEP 1] Firebase 저장 (메모 생성)
             const docRef = await db.collection('memos').add({
                 uid: firebaseUid, 
                 text: userMessage,
                 summary: aiSummary,
                 createdAt: savedDate,
-                notionPageId: null 
+                notionPageId: null,
+                lastEditedAt: new Date(), // ⬅️ [LWW 핵심] 현재 시간 기록 추가
             });
             const firebaseId = docRef.id; 
             console.log('🚀 [Firebase] 카카오 메모 저장 성공!');
+            
+            // [STEP 2 & 3] Notion 동시 저장 및 Notion ID 기록
             const notionPage = await saveToNotion(firebaseUid, userMessage, aiSummary, savedDate, firebaseId);
-            console.log('🚀 [Notion] 카카오 메모를 Notion DB에 동시 저장 성공!');
             await docRef.update({ notionPageId: notionPage.id });
+            
             responseMessage = `✅ [AI 허브] 저장 완료!\n(Notion DB를 확인해 보세요!)`;
         }
     } catch (error) {
