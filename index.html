@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>나의 AI 허브 (로그인)</title>
+    <style>
+        /* (스타일 코드는 이전과 거의 동일합니다) */
+        body { background-color: #f0f2f5; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding-top: 50px; }
+        .card { background-color: #ffffff; padding: 40px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); text-align: center; width: 500px; margin-bottom: 20px; }
+        h1 { color: #1a73e8; }
+        textarea { width: 100%; height: 100px; margin-bottom: 20px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+        button { background-color: #1a73e8; color: white; border: none; padding: 15px 30px; border-radius: 5px; cursor: pointer; font-size: 16px; margin-left: 5px; }
+        button:hover { background-color: #1558b0; }
+        #memoListContainer { margin-top: 10px; width: 500px; }
+        ul { list-style: none; padding: 0; margin: 0; }
+        li {
+            background-color: #ffffff; padding: 20px; border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05); margin-bottom: 15px;
+            text-align: left; border-left: 5px solid #1a73e8;
+            position: relative; padding-right: 150px;
+        }
+        li small { color: #888; font-size: 12px; display: block; margin-top: 8px; }
+        li p.summary { background-color: #f0f2f5; padding: 10px; margin-top: 15px; margin-bottom: 5px; border-radius: 5px; font-style: italic; color: #333; }
+        .listButton { border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 12px; position: absolute; top: 20px; }
+        .deleteButton { background-color: #e74c3c; color: white; right: 20px; }
+        .deleteButton:hover { background-color: #c0392b; }
+        .editButton { background-color: #3498db; color: white; right: 80px; }
+        .editButton:hover { background-color: #2980b9; }
+        #authContainer { width: 500px; text-align: right; margin-bottom: 10px; }
+        #googleLoginButton { background-color: #4285F4; }
+        #kakaoLoginButton { background-color: #FEE500; color: #191919; font-weight: bold; }
+        #logoutButton { background-color: #aaa; padding: 10px 20px; font-size: 14px; }
+        #userProfile { font-weight: bold; color: #333; margin-right: 10px; }
+        .hidden { display: none; }
+
+        /* [S4-Final-UX] '1회용 코드' 카드 스타일 */
+        #kakaoLinkCard { background-color: #FEE500; }
+        #kakaoLinkCard p { color: #191919; font-size: 14px; }
+        
+        /* [S4-Final-UX] '코드'와 '복사' 버튼을 묶는 컨테이너 */
+        #linkCodeContainer {
+            display: flex; /* (핵심) '가로'로 배치 */
+            align-items: center; /* (핵심) '세로' 중앙 정렬 */
+            justify-content: center;
+            margin: 10px 0;
+            width: 100%;
+        }
+        
+        #linkCodeDisplay { 
+            font-size: 18px; font-weight: bold; color: #1a73e8; 
+            background-color: #fff; padding: 10px; border-radius: 5px; 
+            letter-spacing: 0;
+            user-select: all;
+            flex-grow: 1; /* [추가!] '남은 공간'을 꽉 채움 */
+            text-align: center;
+        }
+        
+        /* [S4-Final-UX] '연결코드 복사하기' 버튼 스타일 (위치 이동) */
+        #copyCodeButton {
+            background-color: #3498db; /* 파란색 */
+            color: white;
+            font-size: 14px;
+            padding: 12px 15px; /* (패딩 조정) */
+            margin-left: 10px; /* (왼쪽 간격) */
+        }
+        #copyCodeButton:hover { background-color: #2980b9; }
+
+        /* [S4-Final-UX] '카톡 열기' 버튼 (기존 버튼 재활용) */
+        #openKakaoButton {
+            background-color: #191919; /* 검은색 */
+            color: white;
+            font-size: 16px;
+            margin-top: 10px; /* (위쪽 간격) */
+        }
+        #openKakaoButton:hover { background-color: #333; }
+    </style>
+
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+    <div id="authContainer">
+        <span id="userProfile" class="hidden"></span>
+        <button id="googleLoginButton">Google 로그인</button>
+        <button id="kakaoLoginButton">카카오 로그인</button>
+        <button id="logoutButton" class="hidden">로그아웃</button>
+    </div>
+
+    <div id="mainApp" class="hidden">
+        
+        <div id="kakaoLinkCard" class="card">
+            <h4>카카오톡 계정 연결 (1회 필수)</h4>
+            <p>카톡으로 보낸 메모를 '내 계정'에 저장하려면, 1회용 코드를 발급받아 카톡 챗봇에게 보내주세요.</p>
+            
+            <button id="generateLinkCodeButton">1회용 코드 발급받기</button>
+            
+            <div id="linkCodeContainer" class="hidden">
+                <div id="linkCodeDisplay"></div>
+                <button id="copyCodeButton">연결코드 복사하기</button>
+            </div>
+            
+            <button id="openKakaoButton" class="hidden">카카오톡 채팅방 열기</button>
+            
+            <small id="linkCodeHelp" class="hidden">('명령어'를 '복사'한 후, '카톡방'을 열어 '붙여넣기' 하세요!)</small>
+        </div>
+        <div class="card">
+            <h1>나의 AI 허브 🧠</h1>
+            <textarea id="memoInput" placeholder="여기에 메모를 입력하세요... (AI가 요약해 드립니다!)"></textarea>
+            <button id="saveButton">AI 요약하며 전송!</button>
+            <p id="statusText" style="margin-top: 15px;"></p>
+        </div>
+
+        <div id="memoListContainer">
+            <ul id="memoList"></ul>
+        </div>
+    </div>
+
+    <script>
+        // [Firebase 열쇠] (사장님 코드를 '정확하게' 붙여넣어 주세요!)
+        const firebaseConfig = {
+            apiKey: "AIzaSyBeDDDOYsbbjVBG7aHlBrhxnl7uQ23k4lM",
+            authDomain: "ai-hub-project-460a3.firebaseapp.com",
+            projectId: "ai-hub-project-460a3",
+            storageBucket: "ai-hub-project-460a3.firebasestorage.app",
+            messagingSenderId: "224573122791",
+            appId: "1:224573122791:web:bdfb559a50de276c519a42"
+        };
+        // (↑↑↑ 사장님의 '열쇠'가 이것과 '다르다면', Firebase 콘솔에서 '다시' 복사해서 '교체'해주세요!)
+
+        // [S4-Final-BugFix] '카카오 채널 ID'
+        const KAKAO_CHANNEL_ID = "_ZjxiHn"; // (사장님의 '소문자 j' 채널 ID)
+        
+        // Firebase 앱 초기화 (동일)
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore(); 
+        
+        // --- 전역 변수 (동일) ---
+        let currentUser = null; 
+        let unsubscribeListener = null;
+
+        // --- HTML 요소들 (S4-Final-UX) ---
+        const googleLoginButton = document.getElementById('googleLoginButton');
+        const kakaoLoginButton = document.getElementById('kakaoLoginButton');
+        const logoutButton = document.getElementById('logoutButton');
+        const userProfile = document.getElementById('userProfile');
+        const mainApp = document.getElementById('mainApp');
+        const saveButton = document.getElementById('saveButton');
+        const memoInput = document.getElementById('memoInput');
+        const statusText = document.getElementById('statusText');
+        const memoList = document.getElementById('memoList');
+        const generateLinkCodeButton = document.getElementById('generateLinkCodeButton');
+        const linkCodeContainer = document.getElementById('linkCodeContainer'); // [S4-Final-UX 추가!]
+        const linkCodeDisplay = document.getElementById('linkCodeDisplay');
+        const linkCodeHelp = document.getElementById('linkCodeHelp');
+        const copyCodeButton = document.getElementById('copyCodeButton'); 
+        const openKakaoButton = document.getElementById('openKakaoButton'); 
+
+        // --- '로그인 상태 감지' (버그 수정!) ---
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                currentUser = user; 
+                console.log("로그인 성공!", currentUser.displayName, currentUser.uid);
+                
+                if (currentUser.displayName) {
+                    userProfile.textContent = `${currentUser.displayName}님 환영합니다!`;
+                } else {
+                    userProfile.textContent = `손님 환영합니다!`; 
+                }
+                
+                userProfile.classList.remove('hidden');
+                logoutButton.classList.remove('hidden');
+                googleLoginButton.classList.add('hidden');
+                kakaoLoginButton.classList.add('hidden');
+                mainApp.classList.remove('hidden');
+                setupRealtimeListener(currentUser.uid); 
+            } else {
+                currentUser = null;
+                console.log("로그아웃 상태");
+                userProfile.classList.add('hidden');
+                logoutButton.classList.add('hidden');
+                googleLoginButton.classList.remove('hidden');
+                kakaoLoginButton.classList.remove('hidden');
+                mainApp.classList.add('hidden');
+                memoList.innerHTML = ''; 
+                if (unsubscribeListener) {
+                    unsubscribeListener();
+                    console.log("실시간 감시 중지.");
+                }
+            }
+        });
+
+        // --- '로그인 버튼' 섹션 (S4-Final-BugFix-V3) ---
+        
+        // [Google 로그인] (동일)
+        googleLoginButton.addEventListener('click', () => {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            auth.signInWithPopup(provider).catch(error => { console.error("Google 로그인 실패:", error); });
+        });
+
+        // [카카오 로그인] (닉네임 수동 업데이트)
+        kakaoLoginButton.addEventListener('click', () => {
+            const provider = new firebase.auth.OAuthProvider('oidc.kakao');
+            provider.addScope('profile_nickname'); 
+            provider.setCustomParameters({ prompt: 'consent' }); 
+
+            auth.signInWithPopup(provider)
+                .then((result) => {
+                    const user = result.user;
+                    const profile = result.additionalUserInfo.profile;
+                    
+                    console.log("Kakao 로그인 성공. profile 객체:", profile); 
+
+                    let kakaoNickname = null;
+                    if (profile && profile.properties && profile.properties.nickname) {
+                        kakaoNickname = profile.properties.nickname; 
+                    } else if (profile && profile.nickname) {
+                        kakaoNickname = profile.nickname; 
+                    } else if (profile && profile.name) {
+                        kakaoNickname = profile.name; 
+                    }
+
+                    if ((!user.displayName || user.displayName === '손님') && kakaoNickname) {
+                        console.log(`Firebase 'displayName'이 비어있어 '${kakaoNickname}'(으)로 수동 업데이트를 시도합니다...`);
+                        user.updateProfile({
+                            displayName: kakaoNickname
+                        }).then(() => {
+                            console.log("프로필 이름 수동 업데이트 성공!");
+                            location.reload(); 
+                        });
+                    } else {
+                         console.log("Kakao 로그인 성공! (업데이트 불필요)", user.displayName); 
+                         console.log("찾은 닉네임:", kakaoNickname);
+                         if (!user.displayName) location.reload();
+                    }
+                })
+                .catch((error) => { 
+                    console.error("Kakao 로그인 실패:", error); 
+                });
+        });
+
+        // [로그아웃] (동일)
+        logoutButton.addEventListener('click', () => { auth.signOut(); });
+
+        // --- '실시간 리스너' 함수 (S2 - 동일) ---
+        const setupRealtimeListener = (uid) => {
+            // ... (이전 S2 코드와 100% 동일합니다) ...
+            console.log(`'${uid}' 사용자의 메모 감시를 시작합니다...`);
+            const query = db.collection('memos').where('uid', '==', uid).orderBy('createdAt', 'desc');
+            unsubscribeListener = query.onSnapshot((snapshot) => {
+                console.log("실시간 업데이트 감지!", snapshot.docs.length, "개");
+                memoList.innerHTML = ''; 
+                snapshot.forEach(doc => {
+                    const memoItem = { id: doc.id, data: doc.data() }; 
+                    const li = document.createElement('li');
+                    const date = new Date(memoItem.data.createdAt.seconds * 1000).toLocaleString('ko-KR'); 
+                    li.innerHTML = `
+                        <button class="listButton editButton" data-id="${memoItem.id}" data-text="${memoItem.data.text}">수정</button>
+                        <button class="listButton deleteButton" data-id="${memoItem.id}">삭제</button>
+                        ${memoItem.data.text}
+                        <p class="summary">🤖 AI 요약: ${memoItem.data.summary}</p>
+                        <small>${date}</small>
+                    `;
+                    memoList.appendChild(li);
+                });
+            }, (error) => { console.error("🔥 실시간 감시 실패:", error); });
+        };
+
+        // --- C.R.U.D. 버튼 기능 (S1 - '오타' 수정된 최종본) ---
+        
+        // [저장 버튼]
+        saveButton.addEventListener('click', async () => {
+            // ... (이전과 100% 동일) ...
+            if (!currentUser) return;
+            const token = await currentUser.getIdToken();
+            const memo = memoInput.value;
+            saveButton.disabled = true;
+            statusText.innerHTML = "🤖 AI가 메모를 요약 중입니다...";
+            const response = await fetch('/api/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ memo: memo }),
+            });
+            const data = await response.json();
+            if (response.ok) {
+                statusText.innerHTML = "✅ " + data.message;
+                memoInput.value = "";
+            } else { 
+                statusText.innerHTML = "❌ " + data.message;
+            }
+            saveButton.disabled = false;
+        });
+
+        // [목록(수정/삭제) 클릭]
+        memoList.addEventListener('click', async (event) => {
+            // ... (이전과 100% 동일) ...
+            if (!currentUser) return;
+            const token = await currentUser.getIdToken();
+            if (event.target.classList.contains('deleteButton')) {
+                if (!confirm('삭제하시겠습니까?')) { return; }
+                const memoId = event.target.dataset.id;
+                await fetch(`/api/memos/${memoId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+            }
+            if (event.target.classList.contains('editButton')) {
+                const memoId = event.target.dataset.id;
+                const currentText = event.target.dataset.text;
+                const newText = prompt("메모를 수정하세요:", currentText);
+                if (newText && newText !== currentText) {
+                    await fetch(`/api/memos/${memoId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({ text: newText }) 
+                    });
+                }
+            }
+        });
+        
+        // 👇👇👇 [⭐ '과제 2' (UX 최종 개선) '디자인' 수정!] 👇👇👇
+        generateLinkCodeButton.addEventListener('click', async () => {
+            if (!currentUser) return alert("로그인이 필요합니다.");
+            const token = await currentUser.getIdToken();
+            
+            console.log("서버에 1회용 코드 요청 중...");
+            generateLinkCodeButton.disabled = true;
+            linkCodeDisplay.textContent = "코드 생성 중...";
+            linkCodeContainer.classList.remove('hidden'); // [수정!] 컨테이너를 보여줌
+
+            try {
+                // '서버'에 '1회용 코드'를 요청합니다 (동일)
+                const response = await fetch('/api/generate-link-code', {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) { throw new Error('서버에서 코드 생성 실패'); }
+                const data = await response.json(); // { code: "123456" }
+                
+                // [⭐ 1. '명령어' 완성!]
+                const command = `/연결 ${data.code}`;
+                
+                // [⭐ 2. 'UI' 변경!]
+                linkCodeDisplay.textContent = command; // '명령어'를 '보여줍니다'.
+                linkCodeHelp.textContent = "('연결코드'를 '복사'한 후, '카톡방'을 열어 '붙여넣기' 하세요!)";
+                linkCodeHelp.classList.remove('hidden');
+                
+                // [⭐ 3. '버튼'들 활성화!]
+                copyCodeButton.classList.remove('hidden');
+                openKakaoButton.classList.remove('hidden');
+                generateLinkCodeButton.textContent = "코드 재발급"; // 버튼 텍스트 변경
+
+            } catch (error) {
+                console.error("1회용 코드 발급 실패:", error);
+                linkCodeDisplay.textContent = "에러! 다시 시도하세요.";
+            } finally {
+                generateLinkCodeButton.disabled = false; // '재발급' 버튼으로 활성화
+            }
+        });
+
+        // [S4-Final-UX 추가!] '연결코드 복사' 버튼 클릭
+        copyCodeButton.addEventListener('click', async () => {
+            const commandToCopy = linkCodeDisplay.textContent;
+            if (!commandToCopy || commandToCopy.includes('...')) {
+                return; // 복사할 내용이 없으면 중단
+            }
+            try {
+                // '사용자'가 '직접' 클릭했기 때문에, '클립보드' 복사가 '허용'됩니다!
+                await navigator.clipboard.writeText(commandToCopy);
+                alert("✅ 연결코드가 클립보드에 복사되었습니다!\n\n[카카오톡 채팅방 열기]를 눌러 '붙여넣기' 하세요.");
+            } catch (err) {
+                console.error('클립보드 복사 실패:', err);
+                alert("❌ 복사에 실패했습니다. 직접 복사해주세요.");
+            }
+        });
+
+        // [S4-Final-UX 추가!] '카톡방 열기' 버튼 클릭
+        openKakaoButton.addEventListener('click', () => {
+            window.open(`http://pf.kakao.com/${KAKAO_CHANNEL_ID}/chat`, '_blank');
+        });
+
+    </script>
+</body>
+</html>
