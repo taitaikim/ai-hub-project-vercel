@@ -1,24 +1,24 @@
-// [A.I.K.H. 2.0] Vercel 서버리스 함수
+// [A.I.K.H. 2.0] Vercel 서버리스 함수 (Final Fix)
 // 경로: /api/generate-link-code.js
+// (버그: 'import' 경로를 'ai-hub.js'로 수정)
 
 // --- 1. '중앙 통제실'에서 '부품' 가져오기 ---
-import { db, verifyToken } from '../../_lib/firebaseAdmin.js';
-// (Firebase 초기화 코드가 '완전히' 사라졌습니다!)
+// 
+// [수정!] '../../_lib/firebaseAdmin.js' (X) 
+// [수정!] '../../_lib/ai-hub.js' (O)
+//
+import { db, verifyToken } from '../../_lib/ai-hub.js';
 
 // --- 2. Vercel API 핸들러 (메인 로직) ---
 export default async function handler(req, res) {
 
-    // [보안 1] GET 요청만 허용
+    // [보안 1] GET 요청만 허용 (기존과 동일)
     if (req.method !== 'GET') {
         return res.status(405).json({ message: 'Method Not Allowed' });
     }
 
-    // [보안 2] '보안 검사관' 호출!
-    // '중앙 통제실'에서 가져온 'verifyToken' 함수를 실행합니다.
+    // [보안 2] '보안 검사관' 호출! (기존과 동일)
     const user = await verifyToken(req, res);
-    
-    // 'user'가 'null'이면 (인증 실패), '보안 검사관'이 이미 401/403 응답을 보냈으므로
-    // 여기서는 '즉시' 함수를 종료합니다.
     if (!user) {
         return; 
     }
@@ -30,7 +30,6 @@ export default async function handler(req, res) {
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         const expiration = new Date(Date.now() + 5 * 60 * 1000); // 5분
 
-        // '중앙 통제실'에서 가져온 'db'를 사용합니다.
         await db.collection('linkCodes').doc(code).set({
             uid: uid,
             expiresAt: expiration
