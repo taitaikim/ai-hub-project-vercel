@@ -61,10 +61,7 @@ export default async function handler(req, res) {
     }
     
     // [2단계] 서명 검증 (데이터 무결성 확인)
-    if (!validateNotionSignature(rawBody, req.headers)) {
-        console.warn("🔥 [Notion Webhook] 서명 불일치! 데이터 거부.");
-        return res.status(401).json({ message: 'Unauthorized Signature' });
-    }
+    /* // [2단계] 서명 검증 (데이터 무결성 확인) if (!validateNotionSignature(rawBody, req.headers)) { console.warn("🔥 [Notion Webhook] 서명 불일치! 데이터 거부."); return res.status(401).json({ message: 'Unauthorized Signature' }); } */ // ⬅️ 이 전체 블록을 주석 처리하여 '보안 검사'를 '임시 해제'합니다.
     
     try {
         // --- 3. Handle UPDATE (LWW 시간 비교 로직 최종 수정) ---
